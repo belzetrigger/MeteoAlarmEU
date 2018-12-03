@@ -1,17 +1,34 @@
+from meteo import Meteo
+import re
+from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
+from math import radians, cos, sin, asin, sqrt
+import feedparser
+from os import path
+import urllib.error
+import urllib.request
+import datetime as dt
+import json
+import sys
 """
 MeteoAlarmEU RSS Reader Plugin
 
-Author: Ycahome, 2017
+Author: Belze(2018), Ycahome(2017)
+
 
 Version:    1.0.0: Initial Version
             1.0.1: Minor bug fixes
             1.0.2: Bug Correction
-
+            1.3.0: switched to bfrom bs4 import BeautifulSoup by blz
+            1.3.1: add option to show details and also use highest level for alarm level if multiple entries
+            1.3.2: add option to show alarm icon from rss feed and swtich language
+            1.3.3: add option to use language from domoticz settings
+            1.4.0: moved to extra class
 """
 """
 
 
-<plugin key="MeteoAlarmEU" name="Meteo Alarm EU RSS Reader" author="ycahome" version="1.0.2" wikilink="" externallink="http://www.domoticz.com/forum/viewtopic.php?f=65&t=19519">
+<plugin key="MeteoAlarmEUX" name="Meteo Alarm EU RSS ReaderX" author="belze & ycahome" version="1.3.2" wikilink="" externallink="http://www.domoticz.com/forum/viewtopic.php?f=65&t=19519">
     <params>
         <param field="Mode1" label="RSSFeed" width="400px" required="true" default="http://www.meteoalarm.eu/documents/rss/gr/GR011.rss"/>
         <param field="Mode3" label="Update every x minutes" width="200px" required="true" default="300"/>
@@ -21,28 +38,54 @@ Version:    1.0.0: Initial Version
                 <option label="False" value="Normal"  default="False" />
             </options>
         </param>
+        <param field="Mode5" label="Details and Language for Status" width="200px" title="here you can choose if more details from rss should be shown and if so - which language to use">
+            <options>
+                <option label="NO_DETAIL" value="no_detail"  selected="selected"/>
+                <option label="Details using domoticz lang" value="detail_dom_lang"/>
+                <option label="Details in english" value="english"   />
+                <option label="Details auf deutsch" value="deutsch"   />
+                <option label="Details pa svenska" value="svenska"   />
+            </options>
+        </param>
+        <param field="Mode6" label="Show Alarm Icons from RSS" width="200px">
+            <options>
+                <option label="NO_ICON" value="icon_no"  selected="selected"/>
+                <option label="inline icon" value="icon_inline"   />
+                <option label="inline icon with detail" value="icon_inline_detail"   />
+            </options>
+        </param>
     </params>
 </plugin>
 """
+# TODO
+# - deeper look on from-untill, sometimes untill goes for a few days... in this case clock is not enough
+# - langauge
+#  - use langauge from dom Settings["Language"] - en,de,..
+#  - if defined lang not found in rss -> english as fallback?
+#  - clean up
+# - more languages ..
+# - icons as set?,
+#  - 48png
+#  - alarmtype must be integreted into alarm level, default is 0-4, eg: Alert48_22.png
+#  - see www/app/UtilityController.js: img='<img src="images/Alert48_' + item.Level + '.png" height="48" width="48">';
+#  - https://www.meteoalarm.eu/documents/rss/wflag-l4-t10.jpg
+#  - https://www.meteoalarm.eu/theme/common/pictures/aw104.jpg
 
 
+try:
+    import Domoticz
+except ImportError:
+    import fakeDomoticz as Domoticz
 
-
-import Domoticz
-import json
-import urllib.request
-import urllib.error
-
-from os import path
-import sys
 sys.path
 sys.path.append('/usr/lib/python3/dist-packages')
+sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
 
-import feedparser
 
-from math import radians, cos, sin, asin, sqrt
-from datetime import datetime, timedelta
-#from unidecode import unidecode
+# from unidecode import unidecode
+
+
+# from unidecode import unidecode
 
 
 class BasePlugin:
@@ -51,7 +94,14 @@ class BasePlugin:
         self.debug = False
         self.error = False
         self.nextpoll = datetime.now()
+        self.detailNo = True
+        self.detailLang = "english"
+        self.iconNo = True
 
+        self.iconType = ''
+        self.langKey = 0  # 0 = english, 1 = german, 2 = ?
+
+        self.rss = None
         return
 
     def onStart(self):
@@ -79,7 +129,6 @@ class BasePlugin:
             self.pollinterval = temp * 60
         Domoticz.Log("Using polling interval of {} seconds".format(str(self.pollinterval)))
 
-
         if Parameters["Mode4"] == 'Debug':
             self.debug = True
             Domoticz.Debugging(1)
@@ -87,21 +136,22 @@ class BasePlugin:
         else:
             Domoticz.Debugging(0)
 
+        self.rssUrl = Parameters["Mode1"]
 
-        # create the mandatory child devices if not yet exist
-        if 1 not in Devices:
-            Domoticz.Device(Name="Today", Unit=1, TypeName="Alert",Used=1).Create()
-            Domoticz.Device(Name="Tomorrow", Unit=2, TypeName="Alert",Used=1).Create()
-            Domoticz.Log("Devices created.")
-        Devices[1].Update(0,"No Data")
-        Devices[2].Update(0,"No Data")
+        self.mt = Meteo(self.rssUrl, Settings["Language"], Parameters["Mode5"], Parameters["Mode6"])
+        if self.debug is True:
+            self.mt.dumpMeteoConfig
 
+        # Check if devices need to be created
+        createDevices()
 
+        # init with empty data
+        updateDevice(1, 0, "No Data")
+        updateDevice(2, 0, "No Data")
 
     def onStop(self):
         Domoticz.Debug("onStop called")
         Domoticz.Debugging(0)
-
 
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Debug(
@@ -109,179 +159,41 @@ class BasePlugin:
 
     def onHeartbeat(self):
         now = datetime.now()
-        rss=""
-        feed=""
-        FeedValueFTd=""
-        FeedValueFTm=""
-
         if now >= self.nextpoll:
-          self.nextpoll = now + timedelta(seconds=self.pollinterval)
-          rss=Parameters["Mode1"]
-          feed = feedparser.parse(rss)
-          for key in feed["entries"]: 
-            FeedValue = str(key["description"])
-            FeedValue = '<tr>TODAY ' + FeedValue.split('Today')[1]
-
-            FeedValueFTd = FeedValue.split('Tomorrow')[0]
-            FeedValueFTm = FeedValue.split('Tomorrow')[1]
-            Domoticz.Log("Gathering Data for:"+str(key["title"]))
-
-            if not (FeedValueFTd.strip().find('wflag-l1')==-1):
-              Domoticz.Debug("Alarm(s) for Today: No special awareness required.")
-              #Domoticz.Log("Data Of Warning:"+str(FeedValueFTd.strip()))
-              Domoticz.Debug("Type Of Warning:"+str(FeedValueFTd.find('wflag-l1-t5.jpg')))
-              Domoticz.Debug("Data:"+str(FeedValueFTd).replace('<','-'))
-              ValueToUpdate="No special awareness required"
-              #Devices[1].Update(1,ValueToUpdate, Image=Images[icon].ID)
-
-              Domoticz.Debug("Current Awareness Status:" +  Devices[1].sValue + " with Level " + str(Devices[1].nValue))
-              if (ValueToUpdate != Devices[1].sValue):
-                Domoticz.Log("Awareness for Today Updated to:" + ValueToUpdate)
-                Devices[1].Update(1,ValueToUpdate)
-              else:
-                Domoticz.Log("Awareness Remains Unchanged for Today.")
-            else:
-              Domoticz.Debug("------FEEDPARSER OUTPUT for TODAY:------------------")
-              #Domoticz.Log("Type Of Warning:"+str(FeedValueFTd.find('wflag-l1-t5.jpg')))
-              #Domoticz.Log("Data:"+str(FeedValueFTd).replace('<br>','').replace('</br>','').replace('<td>','').replace('</td>','').replace('<tr>','').replace('</tr>','').replace('<b>','').replace('</b>','').replace('<i>','').replace('</i>','').replace('<',''))
-              FeedValueFTdPeriod = FeedValueFTd.split('<td>')[0]
-              FeedValueFTdPeriod = FeedValueFTdPeriod.split('alt="')[1]
-              FeedValueFTdPeriod = FeedValueFTdPeriod.split(':')
-
-              Domoticz.Debug("Icon:"+FeedValueFTd.split('<td>')[0].replace('<','-'))
-              AWTPossitions = FeedValueFTd.replace('<','-').split('awt:')
-              #if AWTPossitions[2]: Domoticz.Log("AWT Possitions 2:"+AWTPossitions[2])
-              WarningText = ""
-              for AWTPos in range(1,len(AWTPossitions)):
-                AWTvalue = ""
-                LEVELvalue = ""
-                AWTvalue = AWTPossitions[AWTPos].split('level')[0].strip()
-                Domoticz.Debug("AWT Possitions Value "+str(AWTPos)+":"+AWTvalue)
-                LEVELvalue = AWTPossitions[AWTPos].split('level:')[1].split('border')[0].replace('"','').strip()
-                Domoticz.Debug("Level Possitions Value "+str(AWTPos)+":"+LEVELvalue)
-                AWTtext =  AWTvalue
-                if (AWTvalue == "1") : AWTtext = "Wind"
-                if (AWTvalue == "2") : AWTtext = "Snow/Ice"
-                if (AWTvalue == "3") : AWTtext = "ThunderStorm"
-                if (AWTvalue == "4") : AWTtext = "Fog"
-                if (AWTvalue == "5") : AWTtext = "High Temp"
-                if (AWTvalue == "6") : AWTtext = "Low Temp"
-                if (AWTvalue == "7") : AWTtext = "Coastal Event"
-                if (AWTvalue == "8") : AWTtext = "Forestfire"
-                if (AWTvalue == "9") : AWTtext = "Avalanches"
-                if (AWTvalue == "10") : AWTtext = "Rain"
-                if (AWTvalue == "11") : AWTtext = "Flood"
-                if (AWTvalue == "12") : AWTtext = "Rain-Flood"
-                if (AWTPos > 1): WarningText = WarningText + ", "
-                WarningText = WarningText + AWTtext+"("+LEVELvalue+")"
-                Domoticz.Debug("Alarm(s) for today:"+ str(WarningText))
-              Domoticz.Debug("AWT:"+FeedValueFTdPeriod[1].split(' ')[0].replace('<','-').replace('>','-'))
-              Domoticz.Debug("Level:"+FeedValueFTdPeriod[2].split('"')[0].strip().replace('<','-'))
-              Domoticz.Debug("Period:"+FeedValueFTd.split('<td>')[1].strip().replace('<br>','').replace('</br>','').replace('<td>','').replace('</td>','').replace('<','-'))
-              #Domoticz.Log("MessageLocal:"+FeedValueFTd.split('<td>')[2].split('.')[0].strip())
-              #Domoticz.Log("MessageEn:"+FeedValueFTd.split('<td>')[2].split('.')[1].strip().replace('<','-'))
-              #Domoticz.Log("MessageEn:"+FeedValueFTd.split('<td>')[2].split('.')[1].split('english:')[1].strip())
-              #ValueToUpdate=FeedValueFTd.split('<td>')[2].split('.')[1].split('english:')[1].strip()
-              if (LEVELvalue=="5"): LEVELvalue="1"
-
-              Domoticz.Debug("Current Awareness Status:" +  Devices[1].sValue + " with Level " + str(Devices[1].nValue))
-              if (WarningText != Devices[1].sValue) or (int(LEVELvalue) != Devices[1].nValue):
-                Domoticz.Log("Awareness for Today Updated to:" + WarningText)
-                Devices[1].Update(int(LEVELvalue),WarningText)
-              else:
-                Domoticz.Log("Awareness Remains Unchanged for Today.")
-
-            if not (FeedValueFTm.strip().find('wflag-l1')==-1):
-              Domoticz.Debug("Alarm(s) for Tomorrow: No special awareness required")
-              #Domoticz.Log("Data Of Warning:"+str(FeedValueFTm.strip()))
-              Domoticz.Debug("Type Of Warning:"+str(FeedValueFTm.find('wflag-l1-t5.jpg')))
-              ValueToUpdate="No special awareness required"
-              Domoticz.Debug("Current Awareness Status:" +  Devices[2].sValue + " with Level " + str(Devices[2].nValue))
-              if (ValueToUpdate != Devices[2].sValue):
-                Domoticz.Log("Awareness for Tomorrow Updated to:" + ValueToUpdate)
-                Devices[2].Update(1,ValueToUpdate)
-              else:
-                Domoticz.Log("Awareness Remains Unchanged for Tomorrow.")
-            else:
-              #FeedValueFTm = FeedValueFTd.split('<tr>')
-              Domoticz.Debug("------FEEDPARSER OUTPUT for TOMORROW:------------------")
-              #Domoticz.Log("Type Of Warning:"+str(FeedValueFTm.find('awt:5')))
-              FeedValueFTmPeriod = FeedValueFTm.split('<td>')[0]
-              FeedValueFTmPeriod = FeedValueFTmPeriod.split('alt="')[1]
-              FeedValueFTmPeriod = FeedValueFTmPeriod.split(':')
-
-              Domoticz.Debug("Icon:"+FeedValueFTm.split('<td>')[0].replace('<','-'))
-              AWTPossitions = FeedValueFTm.replace('<','-').split('awt:')
-              #if AWTPossitions[2]: Domoticz.Log("AWT Possitions 2:"+AWTPossitions[2])
-              WarningText = ""
-              HLEVELvalue = 1
-              for AWTPos in range(1,len(AWTPossitions)):
-                AWTvalue = ""
-                LEVELvalue = ""
-                AWTvalue = AWTPossitions[AWTPos].split('level')[0].strip()
-                Domoticz.Debug("AWT Possitions Value "+str(AWTPos)+":"+AWTvalue)
-                LEVELvalue = AWTPossitions[AWTPos].split('level:')[1].split('border')[0].replace('"','').strip()
-                Domoticz.Debug("Level Possitions Value "+str(AWTPos)+":"+LEVELvalue)
-                AWTtext =  AWTvalue
-                if (AWTvalue == "1") : AWTtext = "Wind"
-                if (AWTvalue == "2") : AWTtext = "Snow/Ice"
-                if (AWTvalue == "3") : AWTtext = "ThunderStorm"
-                if (AWTvalue == "4") : AWTtext = "Fog"
-                if (AWTvalue == "5") : AWTtext = "High Temp"
-                if (AWTvalue == "6") : AWTtext = "Low Temp"
-                if (AWTvalue == "7") : AWTtext = "Coastal Event"
-                if (AWTvalue == "8") : AWTtext = "Forestfire"
-                if (AWTvalue == "9") : AWTtext = "Avalanches"
-                if (AWTvalue == "10") : AWTtext = "Rain"
-                if (AWTvalue == "11") : AWTtext = "Flood"
-                if (AWTvalue == "12") : AWTtext = "Rain-Flood"
-                WarningText = WarningText + AWTtext+"("+LEVELvalue+")"
-                if (AWTPos > 1): WarningText = WarningText + ", "
-                Domoticz.Debug("Alarm(s) for Tomorrow:"+ str(WarningText))
-                if (int(LEVELvalue) > HLEVELvalue): HLEVELvalue = int(LEVELvalue)
-
-              Domoticz.Debug("Icon:"+FeedValueFTm.split('<td>')[0].replace('<','-'))
-              Domoticz.Debug("AWT:"+FeedValueFTmPeriod[1].split(' ')[0].strip().replace('<','-'))
-              Domoticz.Debug("Level:"+FeedValueFTmPeriod[2].split('"')[0].strip().replace('<','-'))
-              #Domoticz.Log("Period:"+FeedValueFTm.split('<td>')[1].strip().replace('<','-'))
-              #Domoticz.Log("MessageLocal:"+FeedValueFTm.split('<td>')[2].split('.')[0].strip().replace('<','-'))
-              #Domoticz.Log("MessageEn:"+FeedValueFTm.split('<td>')[2].split('.')[1].split('english:')[1].strip().replace('<','-'))
-              #Domoticz.Log(FeedValueFTm)
-              #ValueToUpdate=FeedValueFTm.split('<td>')[2].split('.')[1].split('english:')[1].strip().replace('<','-')
-              if (HLEVELvalue==5): HLEVELvalue=0
-
-              Domoticz.Debug("Current Awareness Status:" +  Devices[2].sValue + " with Level " + str(Devices[2].nValue))
-              if (WarningText != Devices[2].sValue) or (int(HLEVELvalue) != Devices[2].nValue):
-                Domoticz.Log("Awareness for Tomorrow Updated to:" + WarningText)
-                Devices[2].Update(HLEVELvalue,WarningText)
-              else:
-                Domoticz.Log("Awareness Remains Unchanged for Tomorrow.")
-
-              Domoticz.Debug("----------------------------------------------------")
-
+            self.nextpoll = now + timedelta(seconds=self.pollinterval)
+            self.mt.readMeteoWarning()
+            # check if
+            if self.mt.needUpdate is True:
+                updateDevice(1,  self.mt.todayLevel, self.mt.todayDetail, self.mt.getTodayTitle())
+                updateDevice(2,  self.mt.tomorrowLevel, self.mt.tomorrowDetail, self.mt.getTomorrowTitle())
+            Domoticz.Debug("----------------------------------------------------")
 
 
 global _plugin
 _plugin = BasePlugin()
 
+
 def onStart():
     global _plugin
     _plugin.onStart()
+
 
 def onStop():
     global _plugin
     _plugin.onStop()
 
+
 def onCommand(Unit, Command, Level, Hue):
     global _plugin
     _plugin.onCommand(Unit, Command, Level, Hue)
+
 
 def onHeartbeat():
     global _plugin
     _plugin.onHeartbeat()
 
 #############################################################################
-#                   Device specific functions                     #
+#                   common functions                     #
 #############################################################################
 
 
@@ -290,37 +202,139 @@ def onHeartbeat():
 
 def DumpConfigToLog():
     for x in Parameters:
-      if Parameters[x] != "":
-          Domoticz.Debug( "'" + x + "':'" + str(Parameters[x]) + "'")
+        if Parameters[x] != "":
+            Domoticz.Debug("'" + x + "':'" + str(Parameters[x]) + "'")
     Domoticz.Debug("Device count: " + str(len(Devices)))
     for x in Devices:
-      Domoticz.Debug("Device:           " + str(x) + " - " + str(Devices[x]))
-      Domoticz.Debug("Device ID:       '" + str(Devices[x].ID) + "'")
-      Domoticz.Debug("Device Name:     '" + Devices[x].Name + "'")
-      Domoticz.Debug("Device nValue:    " + str(Devices[x].nValue))
-      Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
-      Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
+        Domoticz.Debug("Device:           " + str(x) + " - " + str(Devices[x]))
+        Domoticz.Debug("Device ID:       '" + str(Devices[x].ID) + "'")
+        Domoticz.Debug("Device Name:     '" + Devices[x].Name + "'")
+        Domoticz.Debug("Device nValue:    " + str(Devices[x].nValue))
+        Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
+        Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
     return
 
 #
 # Parse an int and return None if no int is given
 #
 
+
 def parseIntValue(s):
 
-        try:
-            return int(s)
-        except:
-            return None
+    try:
+        return int(s)
+    except:
+        return None
 
 #
 # Parse a float and return None if no float is given
 #
 
+
 def parseFloatValue(s):
 
-        try:
-            return float(s)
-        except:
-            return None
+    try:
+        return float(s)
+    except:
+        return None
 
+#############################################################################
+#                       Data specific functions                             #
+#############################################################################
+
+
+def getMeteoLangFromSettings():
+    lng = Settings["Language"]
+    return getMeteoLang(lng)
+
+
+# takes the
+# PARAM :domLanguage
+# RETURN
+#
+def getMeteoLang(domLanguage):
+    if domLanguage in BasePlugin.DOM_LANG_TO_METEO:
+        mLang = BasePlugin.DOM_LANG_TO_METEO[domLanguage]
+    else:
+        Domoticz.Error("Given key '{}' does not exist in Mapping from Domoticz to Meteo! ".format(domLanguage))
+    return mLang
+
+
+def getLangIndex(meteoLang):
+    langKey = 0
+    if 'svenska' in meteoLang:
+        langKey = 2
+    elif 'deutsch' in meteoLang:
+        langKey = 1
+    else:
+        langKey = 0
+    return langKey
+
+# takes the key from meteo and looks for defined translation
+# PARAM
+#  idx - based on the meteo rss awt, but its extended, so 99 works as well
+#  langIndex - the index stands for postion in langauge array 0=english,1=deutsch,2=svenska
+
+
+def getAwtTranslation(idx, langIndex):
+    txt = idx
+    if int(idx) in BasePlugin.AWT_TRANSLATION:
+        t = BasePlugin.AWT_TRANSLATION[int(idx)]
+        txt = t[langIndex]
+    else:
+        txt = idx
+        Domoticz.Error("BLZ: did not found key '{}' in translation list!".format(idx))
+    return txt
+
+
+def getDatesFromRSS(txt, relevantDate):
+    start = ["", ""]
+    end = ["", ""]
+    matches = re.findall(r'(\d{2}).(\d{2}).(\d{4}) (\d{2}:\d{2})', txt)
+    if(matches):
+        start = getDatesFromMatch(matches[0], relevantDate)
+        end = getDatesFromMatch(matches[1], relevantDate)
+    result = [start[0], start[1], end[0], end[1]]
+    return result
+
+
+def getDatesFromMatch(match, relevantDate):
+    iDay = int(match[0])
+    longDate = "{}.{}. {}".format(iDay, match[1], match[3])
+    # take care about start date
+    if iDay == relevantDate.date().day:
+        shortDate = match[3]
+    else:
+        shortDate = "{}.{}.".format(iDay, match[1])
+    result = [shortDate, longDate]
+    return result
+
+#############################################################################
+#                       Device specific functions                           #
+#############################################################################
+
+
+def createDevices():
+    # create the mandatory child devices if not yet exist
+    if 1 not in Devices:
+        Domoticz.Device(Name="Today", Unit=1, TypeName="Alert", Used=1).Create()
+        Domoticz.Log("Devices[2] created.")
+    if 2 not in Devices:
+        Domoticz.Device(Name="Tomorrow", Unit=2, TypeName="Alert", Used=1).Create()
+        Domoticz.Log("Devices[2] created.")
+
+
+# update a device Unit = idx, alarmData = sValue, highestLevel=nValue, name=name of device, alwaysUpdate if true overwrite anyway
+def updateDevice(Unit, highestLevel, alarmData, name='', alwaysUpdate=False):
+    # Make sure that the Domoticz device still exists (they can be deleted) before updating it
+    if Unit in Devices:
+        if (alarmData != Devices[Unit].sValue) or (int(highestLevel) != Devices[Unit].nValue or alwaysUpdate == True):
+            if(len(name) <= 0):
+                Devices[Unit].Update(int(highestLevel), alarmData)
+            else:
+                Devices[Unit].Update(int(highestLevel), alarmData, Name=name)
+            Domoticz.Log("BLZ: Awareness Updated to: {} value: {}".format(alarmData, highestLevel))
+        else:
+            Domoticz.Log("BLZ: Awareness Remains Unchanged")
+    else:
+        Domoticz.Error("Devices[{}] is unknown. So we cannot update it.".format(Unit))
