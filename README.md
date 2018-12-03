@@ -5,6 +5,7 @@ Original project
 and forum link: http://www.domoticz.com/forum/viewtopic.php?f=65&t=19519&hilit=MeteoAlarmEU
 And also got a lot ideas from ffes [domoticz-buienradar](https://github.com/ffes/domoticz-buienradar/)
 
+![settings](https://github.com/belzetrigger/domoticz-MeteoAlarmEU/raw/master/resources/unit_en_ml_warnings.PNG)
 
 ## Summary
 This is a virtal hardware plugin that adds information about extrem weather from [meteoalarm.eu](http://www.meteoalarm.eu/) to your [Domoticz](https://www.domoticz.com/) interface. Therefore it will generate two new alert sensors showing latest warnings. One for today and another one for tomorrow.
@@ -13,8 +14,10 @@ As this is a european meteorological service it only works in Europe. And you al
 
 This plugin is open source.
 
+
+
 ## Installation and Setup
-- a running Domoticz
+- a running Domoticz, tested with 4.10038
 - Python 3
 - install needed python moduls:
   - beautifullsoup bs4
@@ -37,7 +40,9 @@ sys.path.append('/usr/lib/python3/dist-packages')
 - restart Domoticz service
 - Now go to **Setup**, **Hardware** in your Domoticz interface. There add
 **MeteoAlarmEU**.
-- Settings
+### Settings
+![settings](https://github.com/belzetrigger/domoticz-MeteoAlarmEU/raw/master/resources/settings.PNG)
+
     - RSSFeed:
         -  go to [meteoalarm.eu](http://www.meteoalarm.eu/?lang=en_UK)
         -  select your country
@@ -79,7 +84,8 @@ Takes the rss feed from meteo and scans it for:
     - to get the type of warning and alarm level
     - to use the same url on the device text to show image 
 - keep the worst alarm level per day and use it for Domoticz alarm sensor
-- updateDate of feed: to know if there is a change, and so devices should be updated to
+- updateDate aka publish Date of feed: to know if there is a change, and so devices should be updated to
+- language in warning message. because content is like [language]: blabla
 Collect all those data per day and puts it on domoticz alarm devices
 
 ## Developing
