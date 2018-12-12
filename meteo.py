@@ -1,17 +1,20 @@
 # moved logic of meteo rss warning to extra class
-try:
-    import Domoticz
-except ImportError:
-    import fakeDomoticz as Domoticz
 import sys
 sys.path
 sys.path.append('/usr/lib/python3/dist-packages')
 sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
+sys.path.append('C:\\Program Files (x86)\\Python37-32\\Lib\\site-packages')
 import feedparser
 from bs4 import BeautifulSoup
 import re
 from datetime import datetime, timedelta
 from time import mktime
+
+try:
+    import Domoticz
+except ImportError:
+    import fakeDomoticz as Domoticz
+
 
 class Meteo:
     # ####################################
@@ -20,6 +23,8 @@ class Meteo:
     MAX_SHOWN_DETAIL_LENGTH = 80
     # show pub date of rss in name
     SHOW_DATE_IN_NAME = True
+    
+
 
     AWT_TRANSLATION = {
         1: ["Wind", "Wind", "Wind"],
@@ -67,15 +72,23 @@ class Meteo:
         return
 
     def getDayTitle(self, idx):
+        '''returns the title or name for the device.
+        "Today: {location} ({update time from rss})"
+        Arguments:
+            idx {int} -- 0 for today, 1 for tomorrow
+
+        Returns:
+            str -- the name: like "Today: {location} ({update time from rss})"
+        '''
+
         # convert from time struct to date
         dt = datetime.fromtimestamp(mktime(self.pubDate))
         # Domoticz.Debug("XXX{:%H:%M}".format(dt))
-        
         s = getAwtTranslation(idx, self.langKey) + ': ' + self.location
         if Meteo.SHOW_DATE_IN_NAME is True and self.pubDate is not None:
             s = "{} ({:%H:%M})".format(s, dt)
         return s
-    
+
     def getTodayTitle(self):
         return self.getDayTitle(200)
 
@@ -83,9 +96,23 @@ class Meteo:
         return self.getDayTitle(201)
 
     def needUpdate(self):
+        '''does some of the devices need an update
+
+        Returns:
+            boolean -- if True -> please update the device in domoticz
+        '''
+
         return self.needUpdate
 
     def configure(self, domLangSetting, detailSetting, iconSetting):
+        '''does the configuration of this service
+
+        Arguments:
+            domLangSetting {str} -- the settings from domoticz 
+            detailSetting {str} -- configuration of detail from domoticz for this current hardware
+            iconSetting {str} -- configuration of icons from domoticz for this current hardware
+        '''
+
         # check details and language
         if detailSetting == 'no_detail' or len(detailSetting) <= 0:
             self.detailNo = True
@@ -127,6 +154,9 @@ class Meteo:
             Domoticz.Debug("Rss icon turned on. Type is: " + self.iconType)
 
     def dumpMeteoConfig(self):
+        '''just print configuration and settings to log
+        '''
+
         Domoticz.Log(
             "detailNo: {}\ndetailLang: {}\n"
             "langKey: {}\niconNo: {}\niconType:{}"
@@ -140,6 +170,9 @@ class Meteo:
         )
 
     def reset(self):
+        '''set all importent fields to None
+        '''
+
         self.location = None
         self.todayDetail = None
         self.todayLevel = None
@@ -150,6 +183,9 @@ class Meteo:
         self.needUpdate = True
 
     def dumpMeteoStatus(self):
+        '''just print current status to log
+        '''
+
         Domoticz.Log(
             "##########################################\n"
             "{} ({}) :\nHeute:\t{}-{}\n\rMorgen:\t{}-{}\nneed update?:\t{}"
@@ -165,11 +201,17 @@ class Meteo:
         )
 
     def readMeteoWarning(self):
+        """tries to get rss data from meteo and parse it.
+        Values are stored on attributes. 
+        check self.needUpdate. if we get new data we set a flag there.
+
+        """
+
         try:
             Domoticz.Debug('Retrieve meteo weather data from ' + self.rssUrl)
             feed = feedparser.parse(self.rssUrl)
             for key in feed["entries"]:
-                Domoticz.Log("Gathering Data for:"+str(key["title"]))
+                Domoticz.Log("Gathering Data for:" + str(key["title"]))
                 self.location = str(key["title"])
                 # mydivs = soup.find("div", {"class": "lastUpdated"})
                 if self.pubDate is None:
@@ -180,7 +222,6 @@ class Meteo:
                     self.needUpdate = True
                 self.pubDate = key.published_parsed
                 soup = BeautifulSoup(str(key["description"]), 'html.parser')
-                
                 Domoticz.Log("##########################\n{}\n##########################".format(self.pubDate))
                 table = soup.find('table')
                 rows = table.find_all('tr')
@@ -216,8 +257,8 @@ class Meteo:
                     if row.img:
                         Domoticz.Debug(
                             "BLZ: working on 2nd row awt, level and time")
-                        
-                        wrngCounter = wrngCounter+1
+
+                        wrngCounter = wrngCounter + 1
 
                         if(len(data[idx]) > 0):
                             data[idx] = data[idx] + ";\r\n"
@@ -259,7 +300,7 @@ class Meteo:
                         # generate offset day based on index --> just to now if today or tomorrow is relvant date
                         offset_day = timedelta(days=idx)
                         baseDate = datetime.now()
-                        relevantDate = baseDate+offset_day
+                        relevantDate = baseDate + offset_day
 
                         # #######################
                         # TODO
@@ -369,10 +410,10 @@ class Meteo:
                             if(self.detailNo is False):
                                 if(len(detailTxt) > Meteo.MAX_SHOWN_DETAIL_LENGTH):
                                     data[idx] = "{} {}...".format(
-                                        data[idx],  detailTxt[:Meteo.MAX_SHOWN_DETAIL_LENGTH])
+                                        data[idx], detailTxt[:Meteo.MAX_SHOWN_DETAIL_LENGTH])
                                 else:
                                     data[idx] = "{} {}".format(
-                                        data[idx],  detailTxt)
+                                        data[idx], detailTxt)
                             ##
                             # take care about icon
                             if 'icon_inline_detail' in self.iconType:
@@ -424,6 +465,18 @@ class Meteo:
 # RETURN
 #
 def getMeteoLang(domLanguage):
+    """translate the domoticz language from Settings["Language"] to meteo confrom.
+    eg: Domoticz: de -> meteo: deutsch,
+    as you see, we use the langauge own name for the language.
+    because meteo rss warning is using it this way.
+
+    Arguments:
+        domLanguage {str} -- value from domoticz settings for language
+
+    Returns:
+        str -- the matching longform language that works wit meteo rss
+    """
+
     if domLanguage in Meteo.DOM_LANG_TO_METEO:
         mLang = Meteo.DOM_LANG_TO_METEO[domLanguage]
     else:
@@ -435,6 +488,16 @@ def getMeteoLang(domLanguage):
 
 
 def getLangIndex(meteoLang):
+    """takes the langauge from meteo and convert it to keyself.
+    if language is not found, we return 0 for english
+
+    Arguments:
+        meteoLang {str} -- longform of language
+
+    Returns:
+        int -- return the matching key or 0 for english as fallback
+    """
+
     langKey = 0
     if 'svenska' in meteoLang:
         langKey = 2
@@ -452,6 +515,17 @@ def getLangIndex(meteoLang):
 
 
 def getAwtTranslation(idx, langIndex):
+    """
+    takes the key from meteo and looks for defined translation
+
+    Arguments:
+        idx {[type]} -- key/index from meteo rss awt, but its extended, so 99 works as well
+        langIndex {int} -- the index stands for postion in langauge array 0=english,1=deutsch,2=svenska
+
+    Returns:
+        str -- translated longform for given awt key
+    """
+
     txt = idx
     if int(idx) in Meteo.AWT_TRANSLATION:
         t = Meteo.AWT_TRANSLATION[int(idx)]
@@ -464,6 +538,19 @@ def getAwtTranslation(idx, langIndex):
 
 
 def getDatesFromRSS(txt, relevantDate):
+    """parses the txt from rss feed. Search for from to dates
+    in form of dd.mm.yyyy HH:MM. If warning is relevant for the same day as
+    relevant day, we retun the time, otherwise the date in form dd.mm.
+
+    Arguments:
+        txt {str} -- txt from rss feed, containing the from to dates
+        relevantDate {date} -- the day of the device, means today or tomorrow
+
+
+    Returns:
+        arry -- the parsed dates as [start[0], start[1], end[0], end[1]]
+                 [shortStartDate, longStartDate, shortEndDate, longEndDate]
+    """
     start = ["", ""]
     end = ["", ""]
     matches = re.findall(r'(\d{2}).(\d{2}).(\d{4}) (\d{2}:\d{2})', txt)
@@ -475,6 +562,19 @@ def getDatesFromRSS(txt, relevantDate):
 
 
 def getDatesFromMatch(match, relevantDate):
+    '''extract the dates from a performed reg ex search
+    and compare with relevant date to deliver a a custimzed shortDate
+    If warning is relevant for the same day as relevant day, we retun the time,
+    otherwise the date in form dd.mm.
+    Arguments:
+        match {regex match} -- the matches from reg ex search.
+                            matches = re.findall(r'(\d{2}).(\d{2}).(\d{4}) (\d{2}:\d{2})', txt)
+                            dd.mm.yyyy HH:MM
+        relevantDate {date} -- the day of the device, means today or tomorrow
+
+    Returns:
+        [array] -- [shortDate, longDate]
+    '''
     iDay = int(match[0])
     longDate = "{}.{}. {}".format(iDay, match[1], match[3])
     # take care about start date

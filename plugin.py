@@ -1,15 +1,23 @@
-from meteo import Meteo
-import re
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
-from math import radians, cos, sin, asin, sqrt
-import feedparser
-from os import path
-import urllib.error
-import urllib.request
 import datetime as dt
 import json
+import re
 import sys
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta
+from math import asin, cos, radians, sin, sqrt
+from os import path
+
+sys.path
+sys.path.append('/usr/lib/python3/dist-packages')
+sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
+
+import feedparser
+from bs4 import BeautifulSoup
+
+from meteo import Meteo
+
+
 """
 MeteoAlarmEU RSS Reader Plugin
 
@@ -24,21 +32,27 @@ Version:    1.0.0: Initial Version
             1.3.2: add option to show alarm icon from rss feed and swtich language
             1.3.3: add option to use language from domoticz settings
             1.4.0: moved to extra class
+            1.4.1: cleaned up a bit and added comments on functions
 """
 """
 
 
-<plugin key="MeteoAlarmEUX" name="Meteo Alarm EU RSS ReaderX" author="belze & ycahome" version="1.3.2" wikilink="" externallink="http://www.domoticz.com/forum/viewtopic.php?f=65&t=19519">
+<plugin key="MeteoAlarmEUX"
+name="Meteo Alarm EU RSS ReaderX" author="belze & ycahome"
+version="1.4.1" wikilink="" externallink="http://www.domoticz.com/forum/viewtopic.php?f=65&t=19519">
     <params>
-        <param field="Mode1" label="RSSFeed" width="400px" required="true" default="http://www.meteoalarm.eu/documents/rss/gr/GR011.rss"/>
-        <param field="Mode3" label="Update every x minutes" width="200px" required="true" default="300"/>
+        <param field="Mode1" label="RSSFeed" width="400px" required="true"
+        default="http://www.meteoalarm.eu/documents/rss/gr/GR011.rss"/>
+        <param field="Mode3" label="Update every x minutes" width="200px"
+        required="true" default="300"/>
         <param field="Mode4" label="Debug" width="75px">
             <options>
                 <option label="True" value="Debug"/>
                 <option label="False" value="Normal"  default="False" />
             </options>
         </param>
-        <param field="Mode5" label="Details and Language for Status" width="200px" title="here you can choose if more details from rss should be shown and if so - which language to use">
+        <param field="Mode5" label="Details and Language for Status" width="200px"
+        title="here you can choose if more details from rss should be shown and if so - which language to use">
             <options>
                 <option label="NO_DETAIL" value="no_detail"  selected="selected"/>
                 <option label="Details using domoticz lang" value="detail_dom_lang"/>
@@ -80,6 +94,7 @@ except ImportError:
 sys.path
 sys.path.append('/usr/lib/python3/dist-packages')
 sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
+sys.path.append('C:\\Program Files (x86)\\Python37-32\\Lib\\site-packages')
 
 
 # from unidecode import unidecode
@@ -164,8 +179,8 @@ class BasePlugin:
             self.mt.readMeteoWarning()
             # check if
             if self.mt.needUpdate is True:
-                updateDevice(1,  self.mt.todayLevel, self.mt.todayDetail, self.mt.getTodayTitle())
-                updateDevice(2,  self.mt.tomorrowLevel, self.mt.tomorrowDetail, self.mt.getTomorrowTitle())
+                updateDevice(1, self.mt.todayLevel, self.mt.todayDetail, self.mt.getTodayTitle())
+                updateDevice(2, self.mt.tomorrowLevel, self.mt.tomorrowDetail, self.mt.getTomorrowTitle())
             Domoticz.Debug("----------------------------------------------------")
 
 
@@ -201,6 +216,8 @@ def onHeartbeat():
 
 
 def DumpConfigToLog():
+    '''just dumps the configuration to log.
+    '''
     for x in Parameters:
         if Parameters[x] != "":
             Domoticz.Debug("'" + x + "':'" + str(Parameters[x]) + "'")
@@ -214,13 +231,14 @@ def DumpConfigToLog():
         Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
     return
 
-#
-# Parse an int and return None if no int is given
-#
-
 
 def parseIntValue(s):
-
+    """Parse an int and return None if no int is given
+     Arguments:
+        s {str} -- string of int value
+    Returns:
+        int -- the value in int or None
+    """
     try:
         return int(s)
     except:
@@ -243,32 +261,32 @@ def parseFloatValue(s):
 #############################################################################
 
 
-def getMeteoLangFromSettings():
-    lng = Settings["Language"]
-    return getMeteoLang(lng)
+# def getMeteoLangFromSettings():
+#     lng = Settings["Language"]
+#     return getMeteoLang(lng)
 
 
-# takes the
-# PARAM :domLanguage
-# RETURN
-#
-def getMeteoLang(domLanguage):
-    if domLanguage in BasePlugin.DOM_LANG_TO_METEO:
-        mLang = BasePlugin.DOM_LANG_TO_METEO[domLanguage]
-    else:
-        Domoticz.Error("Given key '{}' does not exist in Mapping from Domoticz to Meteo! ".format(domLanguage))
-    return mLang
+# # takes the
+# # PARAM :domLanguage
+# # RETURN
+# #
+# def getMeteoLang(domLanguage):
+#     if domLanguage in BasePlugin.DOM_LANG_TO_METEO:
+#         mLang = BasePlugin.DOM_LANG_TO_METEO[domLanguage]
+#     else:
+#         Domoticz.Error("Given key '{}' does not exist in Mapping from Domoticz to Meteo! ".format(domLanguage))
+#     return mLang
 
 
-def getLangIndex(meteoLang):
-    langKey = 0
-    if 'svenska' in meteoLang:
-        langKey = 2
-    elif 'deutsch' in meteoLang:
-        langKey = 1
-    else:
-        langKey = 0
-    return langKey
+# def getLangIndex(meteoLang):
+#     langKey = 0
+#     if 'svenska' in meteoLang:
+#         langKey = 2
+#     elif 'deutsch' in meteoLang:
+#         langKey = 1
+#     else:
+#         langKey = 0
+#     return langKey
 
 # takes the key from meteo and looks for defined translation
 # PARAM
@@ -276,38 +294,66 @@ def getLangIndex(meteoLang):
 #  langIndex - the index stands for postion in langauge array 0=english,1=deutsch,2=svenska
 
 
-def getAwtTranslation(idx, langIndex):
-    txt = idx
-    if int(idx) in BasePlugin.AWT_TRANSLATION:
-        t = BasePlugin.AWT_TRANSLATION[int(idx)]
-        txt = t[langIndex]
-    else:
-        txt = idx
-        Domoticz.Error("BLZ: did not found key '{}' in translation list!".format(idx))
-    return txt
+# def getAwtTranslation(idx, langIndex):
+#     txt = idx
+#     if int(idx) in BasePlugin.AWT_TRANSLATION:
+#         t = BasePlugin.AWT_TRANSLATION[int(idx)]
+#         txt = t[langIndex]
+#     else:
+#         txt = idx
+#         Domoticz.Error("BLZ: did not found key '{}' in translation list!".format(idx))
+#     return txt
 
 
-def getDatesFromRSS(txt, relevantDate):
-    start = ["", ""]
-    end = ["", ""]
-    matches = re.findall(r'(\d{2}).(\d{2}).(\d{4}) (\d{2}:\d{2})', txt)
-    if(matches):
-        start = getDatesFromMatch(matches[0], relevantDate)
-        end = getDatesFromMatch(matches[1], relevantDate)
-    result = [start[0], start[1], end[0], end[1]]
-    return result
+# def getDatesFromRSS(txt, relevantDate):
+#     """parses the txt from rss feed. Search for from to dates
+#     in form of dd.mm.yyyy HH:MM. If warning is relevant for the same day as
+#     relevant day, we retun the time, otherwise the date in form dd.mm.
+
+#     Arguments:
+#         txt {str} -- txt from rss feed, containing the from to dates
+#         relevantDate {date} -- the day of the device, means today or tomorrow
 
 
-def getDatesFromMatch(match, relevantDate):
-    iDay = int(match[0])
-    longDate = "{}.{}. {}".format(iDay, match[1], match[3])
-    # take care about start date
-    if iDay == relevantDate.date().day:
-        shortDate = match[3]
-    else:
-        shortDate = "{}.{}.".format(iDay, match[1])
-    result = [shortDate, longDate]
-    return result
+#     Returns:
+#         arry -- the parsed dates as [start[0], start[1], end[0], end[1]]
+#                  [shortStartDate, longStartDate, shortEndDate, longEndDate]
+#     """
+
+#     start = ["", ""]
+#     end = ["", ""]
+#     matches = re.findall(r'(\d{2}).(\d{2}).(\d{4}) (\d{2}:\d{2})', txt)
+#     if(matches):
+#         start = getDatesFromMatch(matches[0], relevantDate)
+#         end = getDatesFromMatch(matches[1], relevantDate)
+#     result = [start[0], start[1], end[0], end[1]]
+#     return result
+
+
+# def getDatesFromMatch(match, relevantDate):
+#     '''extract the dates from a performed reg ex search
+#     and compare with relevant date to deliver a a custimzed shortDate
+#     If warning is relevant for the same day as relevant day, we retun the time,
+#     otherwise the date in form dd.mm.
+#     Arguments:
+#         match {regex match} -- the matches from reg ex search.
+#                             matches = re.findall(r'(\d{2}).(\d{2}).(\d{4}) (\d{2}:\d{2})', txt)
+#                             dd.mm.yyyy HH:MM
+#         relevantDate {date} -- the day of the device, means today or tomorrow
+
+#     Returns:
+#         [array] -- [shortDate, longDate]
+#     '''
+
+#     iDay = int(match[0])
+#     longDate = "{}.{}. {}".format(iDay, match[1], match[3])
+#     # take care about start date
+#     if iDay == relevantDate.date().day:
+#         shortDate = match[3]
+#     else:
+#         shortDate = "{}.{}.".format(iDay, match[1])
+#     result = [shortDate, longDate]
+#     return result
 
 #############################################################################
 #                       Device specific functions                           #
@@ -315,20 +361,36 @@ def getDatesFromMatch(match, relevantDate):
 
 
 def createDevices():
+    '''
+    this creates the device for today and tomorrow, if they are not in device-list
+    '''
+
     # create the mandatory child devices if not yet exist
     if 1 not in Devices:
         Domoticz.Device(Name="Today", Unit=1, TypeName="Alert", Used=1).Create()
-        Domoticz.Log("Devices[2] created.")
+        Domoticz.Log("Devices[1] created.")
     if 2 not in Devices:
         Domoticz.Device(Name="Tomorrow", Unit=2, TypeName="Alert", Used=1).Create()
         Domoticz.Log("Devices[2] created.")
 
 
-# update a device Unit = idx, alarmData = sValue, highestLevel=nValue, name=name of device, alwaysUpdate if true overwrite anyway
+#
 def updateDevice(Unit, highestLevel, alarmData, name='', alwaysUpdate=False):
+    '''update a device - means today or tomorrow, with given data.
+    If there are changes and the device exists.
+    Arguments:
+        Unit {int} -- index of device, 1 = today, 2 = tomorrow
+        highestLevel {[type]} -- the maximum warning level for that day, it is used to set the domoticz alarm level
+        alarmData {[str]} -- data to show in that device, aka text
+
+    Optional Arguments:
+        name {str} -- optional: to set the name of that device, eg. mor info about  (default: {''})
+        alwaysUpdate {bool} -- optional: to ignore current status/needs update (default: {False})
+    '''
+
     # Make sure that the Domoticz device still exists (they can be deleted) before updating it
     if Unit in Devices:
-        if (alarmData != Devices[Unit].sValue) or (int(highestLevel) != Devices[Unit].nValue or alwaysUpdate == True):
+        if (alarmData != Devices[Unit].sValue) or (int(highestLevel) != Devices[Unit].nValue or alwaysUpdate is True):
             if(len(name) <= 0):
                 Devices[Unit].Update(int(highestLevel), alarmData)
             else:

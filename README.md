@@ -65,8 +65,8 @@ sys.path.append('/usr/lib/python3/dist-packages')
 
 
 ## Bugs and ToDos
-Inline images refernce to meteo for example https://www.meteoalarm.eu/documents/rss/wflag-l2-t2.jpg 
-This means if client does not have access, it will be blank.
+1. Inline images refernce to meteo for example https://www.meteoalarm.eu/documents/rss/wflag-l2-t2.jpg  This means if client does not have access, it will be blank.
+2. Think about how to use warning in the domoticz systems. For example do something with the blinds on strong wind, or stop/delay wattering the garden if ..
 
 ## State
 In development. 
