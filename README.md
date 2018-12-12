@@ -84,7 +84,7 @@ Takes the rss feed from meteo and scans it for:
     - to get the type of warning and alarm level
     - to use the same url on the device text to show image 
 - keep the worst alarm level per day and use it for Domoticz alarm sensor
-- updateDate aka publish Date of feed: to know if there is a change, and so devices should be updated to
+- updateDate aka 'publish Date' of feed: to know if there is a change, and so devices should be updated too
 - language in warning message. because content is like [language]: blabla
 Collect all those data per day and puts it on domoticz alarm devices
 
