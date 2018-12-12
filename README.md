@@ -60,7 +60,7 @@ sys.path.append('/usr/lib/python3/dist-packages')
         -  Details pa svenska - ignore domoticz settings, just search for swedish details 
     -  Show Alarm Icon:
         -  NO_ICON: We do not show the warning image from meteo rss feed
-        -  inline icon: we show the littel alarm icon from meteo
+        -  inline icon: we show the little alarm icon from meteo
         -  inline icon with detail: we show the icon and also add the warning text as tool tip
 
 
