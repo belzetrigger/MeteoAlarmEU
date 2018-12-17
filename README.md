@@ -8,7 +8,7 @@ And also got a lot ideas from ffes [domoticz-buienradar](https://github.com/ffes
 ![settings](https://github.com/belzetrigger/domoticz-MeteoAlarmEU/raw/master/resources/unit_en_ml_warnings.PNG)
 
 ## Summary
-This is a virtal hardware plugin that adds information about extrem weather from [meteoalarm.eu](http://www.meteoalarm.eu/) to your [Domoticz](https://www.domoticz.com/) interface. Therefore it will generate two new alert sensors showing latest warnings. One for today and another one for tomorrow.
+This is a virtual hardware plugin that adds information about extrem weather from [meteoalarm.eu](http://www.meteoalarm.eu/) to your [Domoticz](https://www.domoticz.com/) interface. Therefore it will generate two new alert sensors showing latest warnings. One for today and another one for tomorrow.
 
 As this is a european meteorological service it only works in Europe. And you also shoud check [meteoalarm.eu](http://www.meteoalarm.eu/about.php?lang=en_UK) if your country is participating. 
 
@@ -23,11 +23,11 @@ This plugin is open source.
   - beautifullsoup bs4
   - feedparser
 - clone project
-    - got to `domoticz/plugins` directory 
+    - go to `domoticz/plugins` directory 
     - clone the project
         ```bash
         cd domoticz/plugins
-        git clone https://github.com/belzetrigger/MeteoAlarm.git
+        git clone https://github.com/belzetrigger/domoticz-MeteoAlarmEU.git
         ```
 - or just download, unzip and copy to `domoticz/plugins` 
 - make sure downloaded moduls are in path eg. sitepackes python paths or change in plugin.py the path
