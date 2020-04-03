@@ -1,38 +1,24 @@
-import datetime as dt
-import json
-import re
-import sys
-import urllib.error
-import urllib.request
-from datetime import datetime, timedelta
-from math import asin, cos, radians, sin, sqrt
-from os import path
-
-sys.path
-sys.path.append('/usr/lib/python3/dist-packages')
-sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
-
-import feedparser
-from bs4 import BeautifulSoup
-
-from meteo import Meteo
-
-
+# plugin for displaying weather warnigs
+#
+# Author: belze
+#
 """
 MeteoAlarmEU RSS Reader Plugin
 
-Author: Belze(2018), Ycahome(2017)
+Author: Belze(2018/2019/2020), Ycahome(2017)
 
 
 Version:    1.0.0: Initial Version
             1.0.1: Minor bug fixes
             1.0.2: Bug Correction
-            1.3.0: switched to bfrom bs4 import BeautifulSoup by blz
+            1.3.0: switched to from bs4 import BeautifulSoup by blz
             1.3.1: add option to show details and also use highest level for alarm level if multiple entries
-            1.3.2: add option to show alarm icon from rss feed and swtich language
+            1.3.2: add option to show alarm icon from rss feed and switch language
             1.3.3: add option to use language from domoticz settings
             1.4.0: moved to extra class
             1.4.1: cleaned up a bit and added comments on functions
+            1.4.2: bit more stability and better handling for wrong feed url
+
 """
 """
 
@@ -40,9 +26,32 @@ Version:    1.0.0: Initial Version
 <plugin key="MeteoAlarmEUX"
 name="Meteo Alarm EU RSS ReaderX" author="belze & ycahome"
 version="1.4.1" wikilink="" externallink="http://www.domoticz.com/forum/viewtopic.php?f=65&t=19519">
+     <description>
+        <h2>Meteo Alarm EU RSS Reader eXtended</h2><br/>
+        <h3>Features</h3>
+        <ul style="list-style-type:square">
+            <li>shows warnings for today and tomorrow</li>
+            <li>using domoticz alarm level to signal the risk</li>
+            <li>detail level can be chosen</li>
+            <li>supports english, german, partly swedish</li>
+            <li>use this langauge to grab matching warning from meteo</li>
+            <li>icons from meteo can be embedded</li>
+            <li>meteo publish date is shown in name</li>
+            <li>if problems occur eg. missing libs - devices will show it</li>
+        </ul>
+        <h3>Devices</h3>
+        <ul style="list-style-type:square">
+            <li>today - warnings for current day</li>
+            <li>tomorrow - warnings for the next day</li>
+        </ul>
+        <h3>Hint</h3>
+        First visit -><a href="http://www.meteoalarm.eu/">
+        Meteo </a> to choose your region and get rss-Feed link
+    </description>
+
     <params>
         <param field="Mode1" label="RSSFeed" width="400px" required="true"
-        default="http://www.meteoalarm.eu/documents/rss/gr/GR011.rss"/>
+        default="http://www.meteoalarm.eu/documents/rss/de/DE404.rss"/>
         <param field="Mode3" label="Update every x minutes" width="200px"
         required="true" default="300"/>
         <param field="Mode4" label="Debug" width="75px">
@@ -71,8 +80,27 @@ version="1.4.1" wikilink="" externallink="http://www.domoticz.com/forum/viewtopi
     </params>
 </plugin>
 """
+
+import datetime as dt
+import json
+import re
+import sys
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta
+from math import asin, cos, radians, sin, sqrt
+from os import path
+
+sys.path
+sys.path.append('/usr/lib/python3/dist-packages')
+# synology
+# sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
+
+
+from meteo import Meteo
+
 # TODO
-# - deeper look on from-untill, sometimes untill goes for a few days... in this case clock is not enough
+# - deeper look on from-until, sometimes until goes for a few days... in this case clock is not enough
 # - langauge
 #  - use langauge from dom Settings["Language"] - en,de,..
 #  - if defined lang not found in rss -> english as fallback?
@@ -80,7 +108,7 @@ version="1.4.1" wikilink="" externallink="http://www.domoticz.com/forum/viewtopi
 # - more languages ..
 # - icons as set?,
 #  - 48png
-#  - alarmtype must be integreted into alarm level, default is 0-4, eg: Alert48_22.png
+#  - alarmtype must be integrated into alarm level, default is 0-4, eg: Alert48_22.png
 #  - see www/app/UtilityController.js: img='<img src="images/Alert48_' + item.Level + '.png" height="48" width="48">';
 #  - https://www.meteoalarm.eu/documents/rss/wflag-l4-t10.jpg
 #  - https://www.meteoalarm.eu/theme/common/pictures/aw104.jpg
@@ -95,12 +123,6 @@ sys.path
 sys.path.append('/usr/lib/python3/dist-packages')
 sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
 sys.path.append('C:\\Program Files (x86)\\Python37-32\\Lib\\site-packages')
-
-
-# from unidecode import unidecode
-
-
-# from unidecode import unidecode
 
 
 class BasePlugin:
@@ -177,10 +199,15 @@ class BasePlugin:
         if now >= self.nextpoll:
             self.nextpoll = now + timedelta(seconds=self.pollinterval)
             self.mt.readMeteoWarning()
-            # check if
-            if self.mt.needUpdate is True:
-                updateDevice(1, self.mt.todayLevel, self.mt.todayDetail, self.mt.getTodayTitle())
-                updateDevice(2, self.mt.tomorrowLevel, self.mt.tomorrowDetail, self.mt.getTomorrowTitle())
+            # check if error
+            if(self.mt.hasError is True):
+                txt = self.mt.errorMsg
+                updateDevice(1, 4, txt, self.mt.getTodayTitle())
+                updateDevice(2, 4, txt, self.mt.getTomorrowTitle())
+            else:
+                if self.mt.needUpdate is True:
+                    updateDevice(1, self.mt.todayLevel, self.mt.todayDetail, self.mt.getTodayTitle())
+                    updateDevice(2, self.mt.tomorrowLevel, self.mt.tomorrowDetail, self.mt.getTomorrowTitle())
             Domoticz.Debug("----------------------------------------------------")
 
 
@@ -208,7 +235,7 @@ def onHeartbeat():
     _plugin.onHeartbeat()
 
 #############################################################################
-#                   common functions                     #
+#                   common functions                                        #
 #############################################################################
 
 
@@ -256,104 +283,6 @@ def parseFloatValue(s):
     except:
         return None
 
-#############################################################################
-#                       Data specific functions                             #
-#############################################################################
-
-
-# def getMeteoLangFromSettings():
-#     lng = Settings["Language"]
-#     return getMeteoLang(lng)
-
-
-# # takes the
-# # PARAM :domLanguage
-# # RETURN
-# #
-# def getMeteoLang(domLanguage):
-#     if domLanguage in BasePlugin.DOM_LANG_TO_METEO:
-#         mLang = BasePlugin.DOM_LANG_TO_METEO[domLanguage]
-#     else:
-#         Domoticz.Error("Given key '{}' does not exist in Mapping from Domoticz to Meteo! ".format(domLanguage))
-#     return mLang
-
-
-# def getLangIndex(meteoLang):
-#     langKey = 0
-#     if 'svenska' in meteoLang:
-#         langKey = 2
-#     elif 'deutsch' in meteoLang:
-#         langKey = 1
-#     else:
-#         langKey = 0
-#     return langKey
-
-# takes the key from meteo and looks for defined translation
-# PARAM
-#  idx - based on the meteo rss awt, but its extended, so 99 works as well
-#  langIndex - the index stands for postion in langauge array 0=english,1=deutsch,2=svenska
-
-
-# def getAwtTranslation(idx, langIndex):
-#     txt = idx
-#     if int(idx) in BasePlugin.AWT_TRANSLATION:
-#         t = BasePlugin.AWT_TRANSLATION[int(idx)]
-#         txt = t[langIndex]
-#     else:
-#         txt = idx
-#         Domoticz.Error("BLZ: did not found key '{}' in translation list!".format(idx))
-#     return txt
-
-
-# def getDatesFromRSS(txt, relevantDate):
-#     """parses the txt from rss feed. Search for from to dates
-#     in form of dd.mm.yyyy HH:MM. If warning is relevant for the same day as
-#     relevant day, we retun the time, otherwise the date in form dd.mm.
-
-#     Arguments:
-#         txt {str} -- txt from rss feed, containing the from to dates
-#         relevantDate {date} -- the day of the device, means today or tomorrow
-
-
-#     Returns:
-#         arry -- the parsed dates as [start[0], start[1], end[0], end[1]]
-#                  [shortStartDate, longStartDate, shortEndDate, longEndDate]
-#     """
-
-#     start = ["", ""]
-#     end = ["", ""]
-#     matches = re.findall(r'(\d{2}).(\d{2}).(\d{4}) (\d{2}:\d{2})', txt)
-#     if(matches):
-#         start = getDatesFromMatch(matches[0], relevantDate)
-#         end = getDatesFromMatch(matches[1], relevantDate)
-#     result = [start[0], start[1], end[0], end[1]]
-#     return result
-
-
-# def getDatesFromMatch(match, relevantDate):
-#     '''extract the dates from a performed reg ex search
-#     and compare with relevant date to deliver a a custimzed shortDate
-#     If warning is relevant for the same day as relevant day, we retun the time,
-#     otherwise the date in form dd.mm.
-#     Arguments:
-#         match {regex match} -- the matches from reg ex search.
-#                             matches = re.findall(r'(\d{2}).(\d{2}).(\d{4}) (\d{2}:\d{2})', txt)
-#                             dd.mm.yyyy HH:MM
-#         relevantDate {date} -- the day of the device, means today or tomorrow
-
-#     Returns:
-#         [array] -- [shortDate, longDate]
-#     '''
-
-#     iDay = int(match[0])
-#     longDate = "{}.{}. {}".format(iDay, match[1], match[3])
-#     # take care about start date
-#     if iDay == relevantDate.date().day:
-#         shortDate = match[3]
-#     else:
-#         shortDate = "{}.{}.".format(iDay, match[1])
-#     result = [shortDate, longDate]
-#     return result
 
 #############################################################################
 #                       Device specific functions                           #
@@ -392,9 +321,9 @@ def updateDevice(Unit, highestLevel, alarmData, name='', alwaysUpdate=False):
     if Unit in Devices:
         if (alarmData != Devices[Unit].sValue) or (int(highestLevel) != Devices[Unit].nValue or alwaysUpdate is True):
             if(len(name) <= 0):
-                Devices[Unit].Update(int(highestLevel), alarmData)
+                Devices[Unit].Update(int(highestLevel), str(alarmData))
             else:
-                Devices[Unit].Update(int(highestLevel), alarmData, Name=name)
+                Devices[Unit].Update(int(highestLevel), str(alarmData), Name=name)
             Domoticz.Log("BLZ: Awareness Updated to: {} value: {}".format(alarmData, highestLevel))
         else:
             Domoticz.Log("BLZ: Awareness Remains Unchanged")

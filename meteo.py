@@ -1,14 +1,22 @@
-# moved logic of meteo rss warning to extra class
-import sys
-sys.path
-sys.path.append('/usr/lib/python3/dist-packages')
-sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
-sys.path.append('C:\\Program Files (x86)\\Python37-32\\Lib\\site-packages')
-import feedparser
-from bs4 import BeautifulSoup
+# moved logic of Meteo rss warning to extra class
 import re
 from datetime import datetime, timedelta
 from time import mktime
+
+import sys
+sys.path
+sys.path.append('/usr/lib/python3/dist-packages')
+# synology
+# sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
+# windows
+# sys.path.append('C:\\Program Files (x86)\\Python37-32\\Lib\\site-packages')
+
+import feedparser
+try:
+    from bs4 import BeautifulSoup
+except Exception as e:
+    # looks like update?
+    print("Could not load BeautifulSoup. {} ".format(e))
 
 try:
     import Domoticz
@@ -19,12 +27,10 @@ except ImportError:
 class Meteo:
     # ####################################
     # Common definitions
-    # maximum of lenght for details
+    # maximum of length for details
     MAX_SHOWN_DETAIL_LENGTH = 80
     # show pub date of rss in name
     SHOW_DATE_IN_NAME = True
-    
-
 
     AWT_TRANSLATION = {
         1: ["Wind", "Wind", "Wind"],
@@ -47,7 +53,7 @@ class Meteo:
               "tomorrow"]
     }
 
-    # dict for switch dom language to meto rss stuff
+    # dict for switch dom language to Meteo rss stuff
     DOM_LANG_TO_METEO = {
         'en': 'english',
         'de': 'deutsch',
@@ -80,13 +86,16 @@ class Meteo:
         Returns:
             str -- the name: like "Today: {location} ({update time from rss})"
         '''
-
-        # convert from time struct to date
-        dt = datetime.fromtimestamp(mktime(self.pubDate))
-        # Domoticz.Debug("XXX{:%H:%M}".format(dt))
-        s = getAwtTranslation(idx, self.langKey) + ': ' + self.location
-        if Meteo.SHOW_DATE_IN_NAME is True and self.pubDate is not None:
-            s = "{} ({:%H:%M})".format(s, dt)
+        s = ''
+        if(self.hasError is True):
+            s = getAwtTranslation(idx, self.langKey) + ': ERROR!!!'
+        else:
+            # convert from time struct to date
+            dt = datetime.fromtimestamp(mktime(self.pubDate))
+            # Domoticz.Debug("XXX{:%H:%M}".format(dt))
+            s = getAwtTranslation(idx, self.langKey) + ': ' + self.location
+            if Meteo.SHOW_DATE_IN_NAME is True and self.pubDate is not None:
+                s = "{} ({:%H:%M})".format(s, dt)
         return s
 
     def getTodayTitle(self):
@@ -108,7 +117,7 @@ class Meteo:
         '''does the configuration of this service
 
         Arguments:
-            domLangSetting {str} -- the settings from domoticz 
+            domLangSetting {str} -- the settings from domoticz
             detailSetting {str} -- configuration of detail from domoticz for this current hardware
             iconSetting {str} -- configuration of icons from domoticz for this current hardware
         '''
@@ -170,7 +179,7 @@ class Meteo:
         )
 
     def reset(self):
-        '''set all importent fields to None
+        '''set all important fields to None
         '''
 
         self.location = None
@@ -181,6 +190,22 @@ class Meteo:
         self.observationDate = None
         self.pubDate = None
         self.needUpdate = True
+        self.resetError()
+
+    def setError(self, error):
+        '''sets the error msg and put error flag to True
+
+        Arguments:
+            error {Exception} -- the caught exception
+        '''
+        self.hasError = True
+        self.errorMsg = error
+
+    def resetError(self):
+        '''just removes error flag and deletes last error msg
+        '''
+        self.hasError = False
+        self.errorMsg = None
 
     def dumpMeteoStatus(self):
         '''just print current status to log
@@ -189,6 +214,7 @@ class Meteo:
         Domoticz.Log(
             "##########################################\n"
             "{} ({}) :\nHeute:\t{}-{}\n\rMorgen:\t{}-{}\nneed update?:\t{}"
+            "\nError?: {}\tErrorMsg: {}"
             .format(
                 self.location,
                 self.pubDate,
@@ -196,20 +222,28 @@ class Meteo:
                 self.todayDetail,
                 self.tomorrowLevel,
                 self.tomorrowDetail,
-                self.needUpdate
+                self.needUpdate,
+                self.hasError,
+                self.errorMsg
             )
         )
 
     def readMeteoWarning(self):
-        """tries to get rss data from meteo and parse it.
-        Values are stored on attributes. 
+        """tries to get rss data from Meteo and parse it.
+        Values are stored on attributes.
         check self.needUpdate. if we get new data we set a flag there.
 
         """
 
         try:
+
+            verifyBS4()
+
             Domoticz.Debug('Retrieve meteo weather data from ' + self.rssUrl)
             feed = feedparser.parse(self.rssUrl)
+            if(feed.status != 200):
+                raise Exception("did not find feed for {}".format(self.rssUrl))
+
             for key in feed["entries"]:
                 Domoticz.Log("Gathering Data for:" + str(key["title"]))
                 self.location = str(key["title"])
@@ -446,6 +480,7 @@ class Meteo:
 
         except (Exception) as e:
             Domoticz.Error("Error: " + str(e) + " URL: " + self.rssUrl)
+            self.setError(e)
             return
         self.lastUpdate = datetime.now()
 
@@ -480,10 +515,10 @@ def getMeteoLang(domLanguage):
     if domLanguage in Meteo.DOM_LANG_TO_METEO:
         mLang = Meteo.DOM_LANG_TO_METEO[domLanguage]
     else:
-        Domoticz.Error(
-            "Given key '{}' " +
-            "does not exist in Mapping " +
-            "from Domoticz to Meteo! ".format(domLanguage))
+        Domoticz.Error("Given key '{}' "
+                       + "does not exist in Mapping "
+                       + "from Domoticz to Meteo! "
+                       .format(domLanguage))
     return mLang
 
 
@@ -540,7 +575,7 @@ def getAwtTranslation(idx, langIndex):
 def getDatesFromRSS(txt, relevantDate):
     """parses the txt from rss feed. Search for from to dates
     in form of dd.mm.yyyy HH:MM. If warning is relevant for the same day as
-    relevant day, we retun the time, otherwise the date in form dd.mm.
+    relevant day, we return the time, otherwise the date in form dd.mm.
 
     Arguments:
         txt {str} -- txt from rss feed, containing the from to dates
@@ -548,7 +583,7 @@ def getDatesFromRSS(txt, relevantDate):
 
 
     Returns:
-        arry -- the parsed dates as [start[0], start[1], end[0], end[1]]
+        array -- the parsed dates as [start[0], start[1], end[0], end[1]]
                  [shortStartDate, longStartDate, shortEndDate, longEndDate]
     """
     start = ["", ""]
@@ -563,8 +598,8 @@ def getDatesFromRSS(txt, relevantDate):
 
 def getDatesFromMatch(match, relevantDate):
     '''extract the dates from a performed reg ex search
-    and compare with relevant date to deliver a a custimzed shortDate
-    If warning is relevant for the same day as relevant day, we retun the time,
+    and compare with relevant date to deliver a a customized shortDate
+    If warning is relevant for the same day as relevant day, we return the time,
     otherwise the date in form dd.mm.
     Arguments:
         match {regex match} -- the matches from reg ex search.
@@ -584,3 +619,20 @@ def getDatesFromMatch(match, relevantDate):
         shortDate = "{}.{}.".format(iDay, match[1])
     result = [shortDate, longDate]
     return result
+
+
+def verifyBS4():
+    if(moduleLoaded('bs4') is False):
+        try:
+            from bs4 import BeautifulSoup
+        except Exception as e:
+            Domoticz.Error("Error import BeautifulSoup".format(e))
+
+
+def moduleLoaded(modulename: str):
+    if modulename not in sys.modules:
+        Domoticz.Error('{} not imported'.format(modulename))
+        return False
+    else:
+        Domoticz.Debug('{}: {}'.format(modulename, sys.modules[modulename]))
+        return True

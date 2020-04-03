@@ -1,4 +1,6 @@
 # MeteoAlarmEU
+ [![Plugin version](https://img.shields.io/badge/version-1.4.2-red.svg)]()
+
 Domoticz plugin that get data from MeteoAlarm RSS data from MeteoAlarm.eu site
 
 Original project 
@@ -8,20 +10,20 @@ And also got a lot ideas from ffes [domoticz-buienradar](https://github.com/ffes
 ![settings](https://github.com/belzetrigger/domoticz-MeteoAlarmEU/raw/master/resources/unit_en_ml_warnings.PNG)
 
 ## Summary
-This is a virtual hardware plugin that adds information about extrem weather from [meteoalarm.eu](http://www.meteoalarm.eu/) to your [Domoticz](https://www.domoticz.com/) interface. Therefore it will generate two new alert sensors showing latest warnings. One for today and another one for tomorrow.
+This is a virtual hardware plugin that adds information about extreme weather from [meteoalarm.eu](http://www.meteoalarm.eu/) to your [Domoticz](https://www.domoticz.com/) interface. Therefore it will generate two new alert sensors showing latest warnings. One for today and another one for tomorrow.
 
 As this is a european meteorological service it only works in Europe. And you also shoud check [meteoalarm.eu](http://www.meteoalarm.eu/about.php?lang=en_UK) if your country is participating. 
 
 This plugin is open source.
 
 
-
 ## Installation and Setup
-- a running Domoticz, tested with 4.10038
+- a running Domoticz, tested with 4.10038 and 2020.1
 - Python 3
 - install needed python moduls:
   - beautifullsoup bs4
   - feedparser
+  - you can use `pip3 install -r requirements.txt` 
 - clone project
     - go to `domoticz/plugins` directory 
     - clone the project
@@ -65,13 +67,13 @@ sys.path.append('/usr/lib/python3/dist-packages')
 
 
 ## Bugs and ToDos
-1. Inline images refernce to meteo for example https://www.meteoalarm.eu/documents/rss/wflag-l2-t2.jpg  This means if client does not have access, it will be blank.
-2. Think about how to use warning in the domoticz systems. For example do something with the blinds on strong wind, or stop/delay wattering the garden if ..
+1. Inline images reference to meteo for example https://www.meteoalarm.eu/documents/rss/wflag-l2-t2.jpg  This means if client does not have access, it will be blank.
+2. Think about how to use warning in the domoticz systems. For example do something with the blinds on strong wind, or stop/delay watering the garden if ..
 
 ## State
 In development. 
 Improve
-- make languages, more flexiable
+- make languages, more flexible
 - add more languages
 Testing 
  - test with other themes
