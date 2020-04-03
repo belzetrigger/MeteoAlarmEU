@@ -94,3 +94,15 @@ Collect all those data per day and puts it on domoticz alarm devices
 Based on https://github.com/ffes/domoticz-buienradar/ there are
  -  `fakeDomoticz.py` - used to run it outside of Domoticz
  -  `testMeteo.py` it's the entry point for tests
+
+## ChangeLog
+1.0.0: Initial Version
+1.0.1: Minor bug fixes
+1.0.2: Bug Correction
+1.3.0: switched to from bs4 import BeautifulSoup by blz
+1.3.1: add option to show details and also use highest level for alarm level if multiple entries
+1.3.2: add option to show alarm icon from rss feed and switch language
+1.3.3: add option to use language from domoticz settings
+1.4.0: moved to extra class
+1.4.1: cleaned up a bit and added comments on functions
+1.4.2: bit more stability and better handling for wrong feed url

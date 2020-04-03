@@ -25,7 +25,7 @@ Version:    1.0.0: Initial Version
 
 <plugin key="MeteoAlarmEUX"
 name="Meteo Alarm EU RSS ReaderX" author="belze & ycahome"
-version="1.4.1" wikilink="" externallink="http://www.domoticz.com/forum/viewtopic.php?f=65&t=19519">
+version="1.4.2" wikilink="" externallink="http://www.domoticz.com/forum/viewtopic.php?f=65&t=19519">
      <description>
         <h2>Meteo Alarm EU RSS Reader eXtended</h2><br/>
         <h3>Features</h3>
@@ -46,7 +46,7 @@ version="1.4.1" wikilink="" externallink="http://www.domoticz.com/forum/viewtopi
         </ul>
         <h3>Hint</h3>
         First visit -><a href="http://www.meteoalarm.eu/">
-        Meteo </a> to choose your region and get rss-Feed link
+        Meteo_</a> to choose your region and get rss-Feed link
     </description>
 
     <params>
