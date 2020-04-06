@@ -3,9 +3,9 @@ import re
 from datetime import datetime, timedelta
 from time import mktime
 
-import sys
-sys.path
-sys.path.append('/usr/lib/python3/dist-packages')
+# import sys
+# sys.path
+# sys.path.append('/usr/lib/python3/dist-packages')
 # synology
 # sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
 # windows

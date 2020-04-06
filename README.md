@@ -23,7 +23,7 @@ This plugin is open source.
 - install needed python moduls:
   - beautifullsoup bs4
   - feedparser
-  - you can use `pip3 install -r requirements.txt` 
+  - you can use `sudo pip3 install -r requirements.txt` 
 - clone project
     - go to `domoticz/plugins` directory 
     - clone the project
@@ -32,13 +32,19 @@ This plugin is open source.
         git clone https://github.com/belzetrigger/domoticz-MeteoAlarmEU.git
         ```
 - or just download, unzip and copy to `domoticz/plugins` 
-- make sure downloaded moduls are in path eg. sitepackes python paths or change in plugin.py the path
-```bash
-import sys
-sys.path
-sys.path.append('/usr/lib/python3/dist-packages')
-# for synology sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
-```
+- no need on Raspbian for sys path adaption if using sudo for pip3
+- some extra work for Windows or Synology, make sure downloaded modules are in path eg. site-packages python paths or change in plugin.py / fritzHelper.py path
+  - example adaption:
+    ```bash
+    import sys
+    sys.path
+    sys.path.append('/usr/lib/python3/dist-packages')
+    # for synology python3 from community
+    # sys.path.append('/volume1/@appstore/python3/lib/python3.5/site-packages')
+    # for synology sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
+    # for windows check if installed packages as admin or user...
+    # sys.path.append('C:\\Program Files (x86)\\Python37-32\\Lib\\site-packages')
+    ```
 - restart Domoticz service
 - Now go to **Setup**, **Hardware** in your Domoticz interface. There add
 **MeteoAlarmEU**.
