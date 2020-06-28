@@ -241,7 +241,11 @@ class Meteo:
 
             Domoticz.Debug('Retrieve meteo weather data from ' + self.rssUrl)
             feed = feedparser.parse(self.rssUrl)
-            if(feed.status != 200):
+
+            try:
+                if(feed.status != 200):
+                    raise Exception("did not find feed for {}".format(self.rssUrl))
+            except AttributeError:
                 raise Exception("did not find feed for {}".format(self.rssUrl))
 
             for key in feed["entries"]:
@@ -478,11 +482,12 @@ class Meteo:
                         "BLZ: Txt today:\t{}\ntomorrow:\t{} "
                         .format(data[0], data[1]))
 
+            self.lastUpdate = datetime.now()
+
         except (Exception) as e:
             Domoticz.Error("Error: " + str(e) + " URL: " + self.rssUrl)
             self.setError(e)
             return
-        self.lastUpdate = datetime.now()
 
 
 #############################################################################
@@ -630,6 +635,7 @@ def verifyBS4():
 
 
 def moduleLoaded(modulename: str):
+    import sys
     if modulename not in sys.modules:
         Domoticz.Error('{} not imported'.format(modulename))
         return False

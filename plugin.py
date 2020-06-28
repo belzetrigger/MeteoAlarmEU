@@ -84,17 +84,11 @@ version="1.4.2" wikilink="" externallink="http://www.domoticz.com/forum/viewtopi
 import datetime as dt
 import json
 import re
-import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from os import path
-
-# sys.path
-# sys.path.append('/usr/lib/python3/dist-packages')
-# synology
-# sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
 
 
 from meteo import Meteo
@@ -119,10 +113,10 @@ try:
 except ImportError:
     import fakeDomoticz as Domoticz
 
-sys.path
-sys.path.append('/usr/lib/python3/dist-packages')
-sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
-sys.path.append('C:\\Program Files (x86)\\Python37-32\\Lib\\site-packages')
+# sys.path
+# sys.path.append('/usr/lib/python3/dist-packages')
+# sys.path.append('/volume1/@appstore/py3k/usr/local/lib/python3.5/site-packages')
+# sys.path.append('C:\\Program Files (x86)\\Python37-32\\Lib\\site-packages')
 
 
 class BasePlugin:
@@ -197,14 +191,16 @@ class BasePlugin:
     def onHeartbeat(self):
         now = datetime.now()
         if now >= self.nextpoll:
-            self.nextpoll = now + timedelta(seconds=self.pollinterval)
+
             self.mt.readMeteoWarning()
             # check if error
             if(self.mt.hasError is True):
+                self.nextpoll = now + timedelta(seconds=60)
                 txt = self.mt.errorMsg
                 updateDevice(1, 4, txt, self.mt.getTodayTitle())
                 updateDevice(2, 4, txt, self.mt.getTomorrowTitle())
             else:
+                self.nextpoll = now + timedelta(seconds=self.pollinterval)
                 if self.mt.needUpdate is True:
                     updateDevice(1, self.mt.todayLevel, self.mt.todayDetail, self.mt.getTodayTitle())
                     updateDevice(2, self.mt.tomorrowLevel, self.mt.tomorrowDetail, self.mt.getTomorrowTitle())
